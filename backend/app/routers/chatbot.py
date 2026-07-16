@@ -18,7 +18,7 @@ async def process_chat_interaction(query: ChatQuery, current_user: dict = Depend
 
     from langchain_google_genai import ChatGoogleGenerativeAI
 
-    llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=settings.GOOGLE_API_KEY)
+    llm = ChatGoogleGenerativeAI(model="gemini-flash-latest", google_api_key=settings.GOOGLE_API_KEY)
     prompt_context = (
         "You are the HireSense AI assistant, helping a candidate understand resume "
         f"screening results and career advice. Candidate name: {current_user['name']}. "
