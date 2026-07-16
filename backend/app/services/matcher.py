@@ -1,14 +1,20 @@
 import os
-
+import math
 import numpy as np
-from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from xgboost import XGBClassifier
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from app.config import settings
 
 
 class HybridScoringEngine:
     def __init__(self):
-        self.transformer_model = SentenceTransformer("all-MiniLM-L6-v2")
+        if settings.GOOGLE_API_KEY:
+            self.embeddings = GoogleGenerativeAIEmbeddings(
+                model="models/gemini-embedding-001", google_api_key=settings.GOOGLE_API_KEY
+            )
+        else:
+            self.embeddings = None
         self.model_path = os.path.join("trained_models", "xgb_resume_ranker.json")
         self.xgb_model = self._load_model()
 
@@ -20,10 +26,24 @@ class HybridScoringEngine:
         return None
 
     def compute_semantic_score(self, resume_text: str, jd_text: str) -> float:
-        resume_emb = self.transformer_model.encode([resume_text])
-        jd_emb = self.transformer_model.encode([jd_text])
-        similarity = cosine_similarity(resume_emb, jd_emb)[0][0]
-        return float(similarity)
+        if self.embeddings:
+            try:
+                # Embed text using Google Gemini Embedding API
+                resume_emb = np.array(self.embeddings.embed_query(resume_text)).reshape(1, -1)
+                jd_emb = np.array(self.embeddings.embed_query(jd_text)).reshape(1, -1)
+                similarity = cosine_similarity(resume_emb, jd_emb)[0][0]
+                return float(similarity)
+            except Exception as e:
+                # Log error and fallback
+                print(f"Gemini embedding API failed, falling back to word overlap: {e}")
+        
+        # Fallback to word overlap Jaccard-like similarity to prevent failures when key is missing/limit reached
+        words_resume = set(resume_text.lower().split())
+        words_jd = set(jd_text.lower().split())
+        if not words_resume or not words_jd:
+            return 0.0
+        intersection = words_resume.intersection(words_jd)
+        return float(len(intersection) / math.sqrt(len(words_resume) * len(words_jd)))
 
     def predict_ranking_probability(
         self, semantic_score: float, matched_skills_count: int, missing_skills_count: int

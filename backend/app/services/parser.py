@@ -1,16 +1,7 @@
 import io
-
-import spacy
+import re
 from pypdf import PdfReader
 import docx2txt
-
-try:
-    nlp = spacy.load("en_core_web_sm")
-except OSError:
-    import os
-
-    os.system("python -m spacy download en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm")
 
 DEFAULT_SKILL_LIBRARY = [
     "python", "java", "sql", "git", "linux", "react", "fastapi", "mongodb",
@@ -33,9 +24,10 @@ class ResumeParser:
     @staticmethod
     def extract_skills(text: str, skill_library: list | None = None) -> list:
         skill_library = skill_library or DEFAULT_SKILL_LIBRARY
-        doc = nlp(text.lower())
-        found_skills = set()
-        for token in doc:
-            if token.text in skill_library:
-                found_skills.add(token.text)
+        # Find all words/tokens (including +, #, etc.) using regex
+        tokens = re.findall(r'[a-zA-Z0-9+#.-]+', text.lower())
+        # Strip trailing punctuation (like trailing periods or commas)
+        cleaned_tokens = {token.strip('.,-') for token in tokens}
+        # Intersection with skill library
+        found_skills = cleaned_tokens.intersection(skill_library)
         return sorted(found_skills)
